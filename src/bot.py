@@ -68,4 +68,7 @@ for filename in os.listdir('./cogs'):
     if filename.endswith('.py'):
         client.load_extension(f'cogs.{filename[:-3]}')
 
-client.run('Njk3MDk2MzU3NDIwNDY2Mjgw.Xoykaw.HCfJDhlK0oVYcFxWQ4lMVQzwJNw')
+with open('..\\.key', 'r') as file:
+    token = file.read()
+
+client.run(token)
