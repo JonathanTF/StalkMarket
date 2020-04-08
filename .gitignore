@@ -2,3 +2,5 @@ env/
 src/logs
 __pycache__*
 *.key
+turnips/
+DataStore/
