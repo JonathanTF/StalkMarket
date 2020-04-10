@@ -3,10 +3,11 @@ import os
 import json
 import typing
 
-from src.stalk_time import DayOfTheWeek, TimeOfDay, get_week_number, get_year_number
+from stalk_time import DayOfTheWeek, TimeOfDay, get_week_number, get_year_number
 
 _LOGS_DIRECTORY = os.path.abspath('./DataStore/stalk_logs')
-_LOG_PREFIX = 'STLK_'
+_LOG_FOLDER_PREFIX = 'STLK_'
+_LOG_PREFIX = 'USR_'
 _LOG_EXT_TYPE = '.json'
 _DEFAULT_LOG = {}
 
@@ -31,46 +32,66 @@ def verify_log(log_path: str):
             raise ValueError(f"Log JSON was not empty, but was not valid. Get some human eyes on {log_path}!")
 
 
-def get_log_name(week_number: int, year_number: int) -> str:
-    return _LOG_PREFIX + str(year_number) + '_' + str(week_number) + _LOG_EXT_TYPE
+def get_logs_directory(week_number: int, year_number: int) -> str:
+    log_folder = _LOG_FOLDER_PREFIX + str(year_number) + '_' + str(week_number)
+    directory = os.path.join(_LOGS_DIRECTORY, log_folder)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory
 
 
-def get_verified_log_path(week_number: int, year_number: int) -> str:
-    log_path = os.path.join(_LOGS_DIRECTORY, get_log_name(week_number, year_number))
+def get_log_name(user_id: str) -> str:
+    return _LOG_PREFIX + user_id + _LOG_EXT_TYPE
+
+
+def get_verified_log_path(user_id: str, week_number: int, year_number: int) -> str:
+    log_dir = get_logs_directory(week_number, year_number)
+    log_path = os.path.join(log_dir, get_log_name(user_id))
     verify_log(log_path)
     return log_path
 
 
-def get_log_name_for_date(date: datetime.date) -> str:
+def get_log_name_for_date(user_id: str, date: datetime.date) -> str:
     week_number = get_week_number(date)
     year_number = get_year_number(date)
-    return get_log_name(week_number, year_number)
+    return get_verified_log_path(user_id, week_number, year_number)
 
 
-def verify_user_data(user_id: str, all_user_data: typing.Dict):
-    if user_id not in all_user_data:
-        all_user_data[user_id] = {
-            str(DayOfTheWeek.MONDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.TUESDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.WEDNESDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.THURSDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.FRIDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.SATURDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0},
-            str(DayOfTheWeek.SUNDAY): {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0}
-        }
+def verify_user_data(user_data: typing.Dict):
+
+    #for day_of_the_week in [str(DayOfTheWeek(idx)) for idx in range(int(DayOfTheWeek.MAX))]:
+
+    #   for time_of_day in [str(TimeOfDay(idx)) for idx in range(int(TimeOfDay.MAX))]:
+
+    for day_of_the_week in DayOfTheWeek:
+        day = str(day_of_the_week)
+        if day not in user_data:
+            user_data[day] = {str(TimeOfDay.AM): 0, str(TimeOfDay.PM): 0}
+        else:
+            for time_of_day in TimeOfDay:
+                time: str = str(time_of_day)
+                if time not in user_data[day]:
+                    user_data[day][time] = 0
 
 
 def set_turnip_price(user_id: str, price: int, day_of_the_week: DayOfTheWeek, time_of_day: TimeOfDay, week_number: int, year_number: int):
-    with open(get_verified_log_path(week_number, year_number), 'r') as file:
-        all_user_turnip_prices = json.load(file)
-    verify_user_data(user_id, all_user_turnip_prices)
-    all_user_turnip_prices[user_id][str(day_of_the_week)][str(time_of_day)] = price
-    with open(get_verified_log_path(week_number, year_number), 'w+') as file:
-        json.dump(all_user_turnip_prices, file, indent=4)
+    with open(get_verified_log_path(user_id, week_number, year_number), 'r') as file:
+        user_turnip_prices = json.load(file)
+    verify_user_data(user_turnip_prices)
+    user_turnip_prices[str(day_of_the_week)][str(time_of_day)] = price
+    with open(get_verified_log_path(user_id, week_number, year_number), 'w+') as file:
+        json.dump(user_turnip_prices, file, indent=4)
 
 
-def get_turnip_price(user_id: str, day_of_the_week: DayOfTheWeek, time_of_day: TimeOfDay, week_number: int, year_number: int):
-    with open(get_verified_log_path(week_number, year_number), 'r') as file:
-        all_user_turnip_prices = json.load(file)
-    verify_user_data(user_id, all_user_turnip_prices)
-    return all_user_turnip_prices[user_id][str(day_of_the_week)][str(time_of_day)]
+def get_turnip_price(user_id: str, day_of_the_week: DayOfTheWeek, time_of_day: TimeOfDay, week_number: int, year_number: int) -> int:
+    with open(get_verified_log_path(user_id, week_number, year_number), 'r') as file:
+        user_turnip_prices = json.load(file)
+    verify_user_data(user_turnip_prices)
+    return user_turnip_prices[str(day_of_the_week)][str(time_of_day)]
+
+
+def get_week_prices_dict(user_id: str, week_number: int, year_number: int) -> typing.Dict:
+    with open(get_verified_log_path(user_id, week_number, year_number), 'r') as file:
+        user_turnip_prices = json.load(file)
+    verify_user_data(user_turnip_prices)
+    return user_turnip_prices

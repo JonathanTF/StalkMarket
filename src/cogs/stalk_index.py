@@ -6,37 +6,23 @@ import datetime
 from discord.ext import commands, tasks
 from discord.ext.commands import Context
 
-import src.stalk_time as stlk_time
-import src.stalk_channel_listening as stlk_channel_listening
-import src.stalk_logger as stlk_turnip_logger
+import stalk_time as stlk_time
+import stalk_channel_listening as stlk_channel_listening
+import stalk_logger as stlk_turnip_logger
+import stalk_predictions as stlk_predictions
+import stalk_user_config as stlk_user_config
+
+import pytz
+import datetime
 
 
 class StalkIndex(commands.Cog):
 
     _MIN_TURNIP_PRICE = 1
     _MAX_TURNIP_PRICE = 700
-    #_LOG_PREFIX = 'week_'
-    #_LOG_EXT_TYPE = '.json'
-    #_DAYS_OF_THE_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
     def __init__(self, client: commands.Bot):
         self._client = client
-        #try:
-        #    self.update_local_all_channels()
-            #with open('channels.json', 'r') as file:
-            #    self._all_channels = json.load(file)
-        #except json.JSONDecodeError as error:
-        #    with open('channels.json', 'w+') as file:
-        #        file.write("{}")
-        #    self._all_channels = {}
-
-    #def update_local_all_channels(self):
-    #    with open('channels.json', 'r') as file:
-    #        self._all_channels = json.load(file)
-
-    #def get_log_name_for_date(self, date: datetime.date) -> str:
-    #    week_number = date.isocalendar()[1]
-    #    return self._LOG_PREFIX + str(week_number) + self._LOG_EXT_TYPE
 
     # EVENTS IN COGS; analogue to @client.event decorator
     @commands.Cog.listener()
@@ -44,8 +30,15 @@ class StalkIndex(commands.Cog):
         await self._client.change_presence(status=discord.Status.online, activity=discord.Game('Stalk Market'))
         print("Stalk Index is ready")
 
-    @commands.command(aliases=['add'])
-    async def add_stalk_channel(self, context: Context, channel: discord.TextChannel):
+    @commands.command()
+    async def add(self, context: Context, channel: discord.TextChannel):
+        """
+        Start listening to a text channel. Stalk Index will automatically detect numbers in this channel and record them.
+
+        :param context:
+        :param channel:
+        :return:
+        """
         guild_id = str(context.guild.id)
         channel_id = str(channel.id)
         if stlk_channel_listening.is_listening_to_channel(channel_id, guild_id):
@@ -54,19 +47,7 @@ class StalkIndex(commands.Cog):
             stlk_channel_listening.add_listening_channel(channel_id, guild_id)
             await context.send(f'The Stalk Index will begin listening to stalk prices on #**{channel}**!')
 
-        #if guild_id not in self._all_channels:
-        #    self._all_channels[guild_id] = []
-        #channel_id = str(channel.id)
-        #if channel_id in self._all_channels[guild_id]:
-        #    await context.send(f'The Stalk Index is already listening to #**{channel}**!')
-        #else:
-        #    self._all_channels[guild_id].append(str(channel.id))
-        #    with open('channels.json', 'w') as file:
-        #        json.dump(self._all_channels, file, indent=4)
-        #    self.update_local_all_channels()
-        #    await context.send(f'The Stalk Index will begin listening to stalk prices on #**{channel}**!')
-
-    @add_stalk_channel.error
+    @add.error
     async def add_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send('Please specify a Text Channel to add.')
@@ -75,8 +56,15 @@ class StalkIndex(commands.Cog):
         else:
             print(error)
 
-    @commands.command(aliases=['remove'])
-    async def remove_stalk_channel(self, context: Context, channel: discord.TextChannel):
+    @commands.command()
+    async def remove(self, context: Context, channel: discord.TextChannel):
+        """
+        Stop Stalk Index from listening to a channel. Stalk Index will still reply to commands, but won't automatically detect numbers.
+
+        :param context:
+        :param channel:
+        :return:
+        """
         guild_id = str(context.guild.id)
         channel_id = str(channel.id)
         if not stlk_channel_listening.is_listening_to_channel(channel_id, guild_id):
@@ -85,22 +73,7 @@ class StalkIndex(commands.Cog):
             stlk_channel_listening.remove_listening_channel(channel_id, guild_id)
             await context.send(f'The Stalk Index will stop listening to stalk prices on #**{channel}**.')
 
-        #with open('channels.json', 'r') as file:
-        #    all_channels = json.load(file)
-        #guild_id = str(context.guild.id)
-        #if guild_id not in all_channels:
-        #    all_channels[guild_id] = []
-        #channel_id = str(channel.id)
-        #if channel_id in all_channels[guild_id]:
-        #    all_channels[guild_id].remove(channel_id)
-        #    with open('channels.json', 'w') as file:
-        #        json.dump(all_channels, file, indent=4)
-        #    await context.send(f'The Stalk Index will stop listening to stalk prices on #**{channel}**.')
-        #    self.update_local_all_channels()
-        #else:
-        #    await context.send(f'The Stalk Index is not currently listening to #**{channel}**!')
-
-    @remove_stalk_channel.error
+    @remove.error
     async def remove_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send('Please specify a Text Channel to remove.')
@@ -109,24 +82,21 @@ class StalkIndex(commands.Cog):
         else:
             print(error)
 
-    @commands.command(aliases=['list'])
-    async def list_stalk_channels(self, context: Context):
+    @commands.command()
+    async def list(self, context: Context):
+        """
+        List all the text channels that Stalk Index is currently listening to.
+
+        :param context:
+        :return:
+        """
         guild_id = str(context.guild.id)
         msg = 'The Stalk Index is currently listening to the following channels:\n'
         channel_ids = stlk_channel_listening.get_listening_channels(guild_id)
         for channel_name in [self._client.get_channel(int(channel_id)).name for channel_id in channel_ids]:
             msg += f'\t#**{channel_name}**\n'
 
-
-        #for channel_name in [self._client.get_channel(int(channel_id)).name for channel_id in self._all_channels[guild_id]]:
-        #    msg += f'\t#**{channel_name}**\n'
-
         await context.send(msg)
-
-    #def are_details_valid(self, context: Context):
-    #    msg = context.message.content.split([' '])
-    #    if len(msg) < 4:
-    #        return False
 
     @staticmethod
     def user_str(user: discord.User) -> str:
@@ -134,6 +104,13 @@ class StalkIndex(commands.Cog):
 
     @commands.command()
     async def set(self, context: Context, *, details):
+        """
+        Manually set your Turnip price. Provide the day, time of day, and price, in that order. Example: monday am 102
+
+        :param context:
+        :param details:
+        :return:
+        """
         detail_split = details.split(' ')
         if len(detail_split) < 3:
             await context.message.add_reaction('❓')
@@ -170,7 +147,6 @@ class StalkIndex(commands.Cog):
         stlk_turnip_logger.set_turnip_price(user_id, turnip_price, day_of_the_week, time_of_day, week_number, year_number)
         await context.message.add_reaction('👍')
 
-
     @set.error
     async def set_error(self, ctx: Context, error):
         if isinstance(error, commands.MissingRequiredArgument):
@@ -178,68 +154,136 @@ class StalkIndex(commands.Cog):
             await ctx.send(f'@**{ctx.author}**, if you would like to manually **set** your turnip price, please provide the day, am/pm, and the turnip price, in that order.\n\tExample: *{self._client.command_prefix}set monday am 100*')
         else:
             print(error)
-    #def attempt_to_set_user_turnip_price(self, user_id: str, local_datetime: datetime, value: int, overwrite: bool):
-    #    file_name = self.get_log_name_for_date(local_datetime.date())
-    #    file_path = os.path.abspath(os.path.join('logs', file_name))
-    #    if not os.path.exists(file_path):
-    #        with open(file_path, 'w+') as file:
-    #            file.write('{}')
-    #    with open(os.path.join('logs', file_name), 'r') as file:
-    #        try:
-    #            users = json.load(file)
-    #        except json.JSONDecodeError as decode_error:
-    #            users = {}
-    #    if user_id not in users:
-    #        users[user_id] = {"monday": {"am": 0, "pm": 0},
-    #                          "tuesday": {"am": 0, "pm": 0},
-    #                          "wednesday": {"am": 0, "pm": 0},
-    #                          "thursday": {"am": 0, "pm": 0},
-    #                          "friday": {"am": 0, "pm": 0},
-    #                          "saturday": {"am": 0, "pm": 0},
-    #                          "sunday": {"am": 0, "pm": 0}}#
 
-    #    day_of_the_week = self._DAYS_OF_THE_WEEK[local_datetime.weekday()]
-    #    if local_datetime.hour >= 12:
-    #        time_of_day = "pm"
-    #    else:
-    #        time_of_day = "am"
+    #@commands.command()
+    #async def predict(self, context: Context):
 
-    #    if not overwrite and users[user_id][day_of_the_week][time_of_day] != 0:
-    #        return f"your turnip price was already set for {day_of_the_week} ({time_of_day}) to {users[user_id][day_of_the_week][time_of_day]} bells. Use !{value} to force overwrite."
+    @commands.command()
+    async def predict(self, context: Context, output='dm'):
+        """
+        Request your Stalk Futures! Stalk Index will see if there's enough data to identify a pattern in your Stalks. If it can, it will DM you with a full report, which includes predited prices.
 
-     #   users[user_id][day_of_the_week][time_of_day] = value
+        :param context:
+        :param output:
+        :return:
+        """
+        if output == 'channel':
+            out_channel = context
+        elif output == 'dm':
+            out_channel = await context.author.create_dm()
+        else:
+            context.message.add_reaction('❓')
+            await context.send(f"@**{context.author}**, I don't know where output **{output}** is, could you please use one of the following outputs?\n\t**channel**\t **dm** (*default*)")
+            return
 
-     #   with open(file_path, 'w') as file:
-     #       json.dump(users, file)
+        await context.message.add_reaction('📈')
+        user_id = str(context.author.id)
+        week_number = stlk_time.get_week_number(context.message.created_at.date())
+        year_number = stlk_time.get_year_number(context.message.created_at.date())
+        users_week = stlk_turnip_logger.get_week_prices_dict(user_id, week_number, year_number)
+        predictions_report = await stlk_predictions.predict(users_week)
 
-     #   return None
+        prediction_str = stlk_predictions.get_short_prediction_string(predictions_report)
+
+        if len(predictions_report) > 10:
+            await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index is currently matching {len(predictions_report)} models - please provide more data to narrow down the search!")
+            return
+
+        check_where_str = ''
+        if output == 'dm':
+            check_where_str = "check your DMs for a full report on your Stalk Futures!"
+        elif output == 'channel':
+            check_where_str = "See a full report of your Stalk Futures below."
+        await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index matches {len(predictions_report)} models - {check_where_str}\n")
+
+        stalk_futures_str = ''
+        for prediction in stlk_predictions.predictions_list_generator(predictions_report):
+            stalk_futures_str += prediction
+
+        await out_channel.send(stalk_futures_str)
+        return
 
     @commands.command()
     async def report(self, context: Context):
-        await context.send("Sorry, report command is currently under development!")
-        return
+        """
+        Retrieves a log of your turnip prices for the current week.
 
-        file_name = self.get_log_name_for_date(context.message.created_at.date())
-        file_path = os.path.abspath(os.path.join('logs', file_name))
-        if not os.path.exists(file_path):
-            await context.send("There is no stalk index data for the current week!")
-            return
-
-        with open(os.path.join('logs', file_name), 'r') as file:
-            try:
-                users = json.load(file)
-            except json.JSONDecodeError as decode_error:
-                users = {}
-
+        :param context:
+        :return:
+        """
         user_id = str(context.author.id)
-        if user_id not in users:
-            await context.send(f"**{context.author}**, you do not have any stalk index data for this week.")
+        week_number = stlk_time.get_week_number(context.message.created_at.date())
+        year_number = stlk_time.get_year_number(context.message.created_at.date())
+        users_week = stlk_turnip_logger.get_week_prices_dict(user_id, week_number, year_number)
+
+        report_str = ''
+
+        for day_of_the_week in stlk_time.DayOfTheWeek:
+            report_str += f"\t{stlk_time.get_day_of_the_week_human_friendly_name(day_of_the_week, abbreviate=True)} - "
+            day = str(day_of_the_week)
+            for time_of_day in stlk_time.TimeOfDay:
+                time = str(stlk_time.TimeOfDay(time_of_day))
+
+                price = users_week[day][time]
+                report_str += f"{stlk_time.get_time_of_day_human_readable_name(time_of_day)}:{price} "
+
+        await context.send(f"Weekly Stalk Index for @**{context.author}**:\n{report_str}")
+
+    @commands.command(aliases=['tz'])
+    async def timezone(self, context: Context, tz):
+        """
+        Use this command to set your timezone to a valid TZ database name. Timezones are used for automatic number detection to log your entries to the correct field.
+
+        :param context:
+        :param tz:
+        :return:
+        """
+        if not stlk_time.get_is_valid_timezone(tz):
+            await context.send(f"@**{context.author}**, I didn't understand timezone **{tz}**, try using a *TZ database name* found here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones")
+            return
+        user_id = str(context.author.id)
+        stlk_user_config.set_user_timezone(user_id, tz)
+        await context.send(f'@**{context.author}**, your timezone has been updated to {tz}.')
+
+    @timezone.error
+    async def timezone_error(self, ctx: Context, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await ctx.message.add_reaction('❓')
+            await ctx.send(f'@**{ctx.author}**, to set your timezone, please enter in a valid TZ database timezone following the command.\n\tExample: *{self._client.command_prefix}timezone US/Central*')
+        else:
+            print(error)
+
+    @commands.command()
+    async def pattern(self, context: Context, pattern):
+        """
+        Retrieves information about a given pattern. Use it without arguments to get a list of valid patterns.
+
+        :param context:
+        :param pattern:
+        :return:
+        """
+        if pattern not in stlk_predictions.get_valid_patterns():
+            await context.message.add_reaction('❓')
+            msg = f"@**{context.author}**, I didn't recognize **{pattern}** as a market pattern, please try one of the following:\n"
+            for valid_pattern in stlk_predictions.get_valid_patterns():
+                msg += f"\t**{valid_pattern}**"
+            await context.send(msg)
             return
 
-        report_msg = f"Report for **{context.author}**:\n"
-        for day in self._DAYS_OF_THE_WEEK[:-1]:
-            report_msg += f"\t{day[:3]}: {users[user_id][day]['am']}, {users[user_id][day]['pm']}\n"
-        await context.send(report_msg)
+        await context.send(stlk_predictions.get_pattern_info(pattern))
+
+    @pattern.error
+    async def pattern_error(self, context: Context, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await context.message.add_reaction('❓')
+            msg = f"@**{context.author}**, please provide one of the following patterns to get more information:\n"
+            for valid_pattern in stlk_predictions.get_valid_patterns():
+                msg += f"\t**{valid_pattern}**"
+            await context.send(msg)
+            return
+        else:
+            print(error)
+
 
     async def listened_channel_turnip_request(self, message: discord.Message):
         lines = message.content.split(' ')
@@ -267,10 +311,13 @@ class StalkIndex(commands.Cog):
             return
 
         user_id = str(message.author.id)
-        week_number = stlk_time.get_week_number(message.created_at.date())
-        year_number = stlk_time.get_year_number(message.created_at.date())
-        day_of_the_week = stlk_time.get_day_of_the_week(message.created_at)
-        time_of_day = stlk_time.get_time_of_day(message.created_at)
+        user_timezone = stlk_time.convert_timezone_str_to_tzinfo(stlk_user_config.get_user_timezone(user_id))
+        adjusted_time = stlk_time.get_adjusted_time(message.created_at, user_timezone)
+
+        week_number = stlk_time.get_week_number(adjusted_time)
+        year_number = stlk_time.get_year_number(adjusted_time)
+        day_of_the_week = stlk_time.get_day_of_the_week(adjusted_time)
+        time_of_day = stlk_time.get_time_of_day(adjusted_time)
 
         previous_value = stlk_turnip_logger.get_turnip_price(user_id, day_of_the_week, time_of_day, week_number, year_number)
 
@@ -283,17 +330,19 @@ class StalkIndex(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if message.guild is None:
+            return # happens when the bot sends / receives DMs
+
         guild_id = str(message.guild.id)
         channel_id = str(message.channel.id)
 
         if message.author.bot:
             return  # that's a bot!
 
-        if channel_id in stlk_channel_listening.get_listening_channels(guild_id):#  self._all_channels[guild_id]:
+        if channel_id in stlk_channel_listening.get_listening_channels(guild_id):
             # a message came over on a listened channel - try to process the message
             await self.listened_channel_turnip_request(message)
 
-        #await self._client.process_commands(message)
 
 
 # setup function to attach to bot

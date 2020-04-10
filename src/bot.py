@@ -4,26 +4,13 @@ import random
 import os
 from itertools import cycle
 
-
-
-
-
-
-
-
-
-
-
-
-status = cycle(['Status 1', 'Status 2'])
-
 client = commands.Bot(command_prefix='.')
 
 
 @client.command()
 async def load(ctx, extension):
     """
-    COGs. extenions == cog
+    Loads the provided extension
 
     :param ctx:
     :param extension:
@@ -34,18 +21,14 @@ async def load(ctx, extension):
 
 @client.command()
 async def unload(ctx, extension):
+    """
+    Unloads the provided extension
+
+    :param ctx:
+    :param extension:
+    :return:
+    """
     client.unload_extension(f'cogs.{extension}')
-
-
-
-
-
-
-"""
-Event:
-
-bit of code that runs when the bot detects that a specific activity has happened
-"""
 
 
 @client.event
@@ -59,6 +42,13 @@ async def on_ready():
 
 @client.command()
 async def reload(ctx, extension):
+    """
+    reloads the given extension
+
+    :param ctx:
+    :param extension:
+    :return:
+    """
     client.unload_extension(f'cogs.{extension}')
     client.load_extension(f'cogs.{extension}')
 
@@ -72,3 +62,4 @@ with open('..\\.key', 'r') as file:
     token = file.read()
 
 client.run(token)
+print('hullo!')

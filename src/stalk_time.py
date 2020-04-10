@@ -1,6 +1,8 @@
 from enum import IntEnum
 import datetime
 import typing
+import pytz
+from pytz import timezone
 
 
 def get_week_number(date: datetime.date):
@@ -9,6 +11,25 @@ def get_week_number(date: datetime.date):
 
 def get_year_number(date: datetime.date):
     return date.isocalendar()[0]
+
+
+def get_is_valid_timezone(tz: str) -> bool:
+    try:
+        return pytz.timezone(tz) is not None
+    except pytz.exceptions.UnknownTimeZoneError:
+        return False
+
+
+def convert_timezone_str_to_tzinfo(timezone_str: str) -> datetime.tzinfo:
+    return pytz.timezone(timezone_str)
+
+
+def get_adjusted_time(date: datetime.datetime, tz: datetime.tzinfo) -> datetime.datetime:
+    return date.astimezone(tz)
+
+
+def convert_datetime_to_server_datetime(date: datetime.datetime) -> datetime.datetime:
+    return date.astimezone(timezone('America/Chicago'))
 
 
 class DayOfTheWeek(IntEnum):
@@ -38,7 +59,8 @@ def get_day_of_the_week(date: datetime.datetime) -> DayOfTheWeek:
 
 
 def get_time_of_day(date: datetime.datetime) -> TimeOfDay:
-    if date.hour >= 12:
+    hour = date.hour + (date.utcoffset().total_seconds() / 3600)
+    if hour >= 12:
         return TimeOfDay.PM
     else:
         return TimeOfDay.AM
