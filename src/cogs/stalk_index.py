@@ -181,23 +181,58 @@ class StalkIndex(commands.Cog):
         week_number = stlk_time.get_week_number(context.message.created_at.date())
         year_number = stlk_time.get_year_number(context.message.created_at.date())
         users_week = stlk_turnip_logger.get_week_prices_dict(user_id, week_number, year_number)
-        predictions_report = await stlk_predictions.predict(users_week)
+        week_delta = datetime.timedelta(days=7)
+        previous_week_number = stlk_time.get_week_number(context.message.created_at.date() - week_delta)
+        previous_year_number = stlk_time.get_year_number(context.message.created_at.date() - week_delta)
+        last_weeks_pattern = stlk_turnip_logger.get_pattern(user_id, previous_week_number, previous_year_number)
+        probabilities, predictions = await stlk_predictions.predict(users_week, last_weeks_pattern)
 
-        prediction_str = stlk_predictions.get_short_prediction_string(predictions_report)
+        prediction_str = f"@**{context.author}**, please see the following predictions for your Stalk Market:\n\t"
 
-        if len(predictions_report) > 10:
-            await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index is currently matching {len(predictions_report)} models - please provide more data to narrow down the search!")
+        probability_report = ""
+        probability_and_str_tuples = []
+        for pattern in probabilities.keys():
+            probability = probabilities[pattern]
+            probability_and_str_tuples.append((probability, f"__{pattern}__: **{probability}**%, "))
+            #probability_report += f"__{pattern}__: **{probability}**%, "
+        probability_and_str_tuples.sort(key=lambda x: x[0], reverse = True)
+        for item in probability_and_str_tuples:
+            probability_report += item[1]
+        probability_report = probability_report[:-2]
+
+        prediction_str += probability_report + "\n"
+
+        # if there's a probability with over 99% chance, set this week's pattern to that
+        for pattern in probabilities.keys():
+            probability = probabilities[pattern]
+            if probability >= 99.0:
+                stlk_turnip_logger.set_pattern(user_id, pattern, week_number, year_number)
+                prediction_str += f"Your Stalk Market for this week has been recorded as following the **{pattern}** pattern - this will be used to improve next week's predictions.\n"
+                break
+
+        #await context.send(f"@**{context.author}**, please see the following predictions for your Stalk Market:\n\t{probability_report}")
+
+        #prediction_str = stlk_predictions.get_short_prediction_string(predictions)
+
+        if len(predictions) > 10:
+            prediction_str += "Your Stalk Index is currently matching {len(predictions)} models - please provide more data to narrow down the search!"
+            await context.send(prediction_str)
             return
+            #await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index is currently matching {len(predictions)} models - please provide more data to narrow down the search!")
+        else:
+            check_where_str = ''
+            if output == 'dm':
+                check_where_str = "Check your DMs for a full report on your Stalk Futures!"
+            elif output == 'channel':
+                check_where_str = "See a full report of your Stalk Futures below."
+            prediction_str += f"Your Stalk Index matches {len(predictions)} models - {check_where_str}"
 
-        check_where_str = ''
-        if output == 'dm':
-            check_where_str = "check your DMs for a full report on your Stalk Futures!"
-        elif output == 'channel':
-            check_where_str = "See a full report of your Stalk Futures below."
-        await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index matches {len(predictions_report)} models - {check_where_str}\n")
+        await context.send(prediction_str)
+
+        # send the detailed stalk futures report
 
         stalk_futures_str = ''
-        for prediction in stlk_predictions.predictions_list_generator(predictions_report):
+        for prediction in stlk_predictions.predictions_list_generator(predictions):
             stalk_futures_str += prediction
 
         await out_channel.send(stalk_futures_str)
@@ -253,10 +288,10 @@ class StalkIndex(commands.Cog):
         else:
             print(error)
 
-    @commands.command()
-    async def pattern(self, context: Context, pattern):
+    @commands.command(aliases=['prev', 'prev_pattern'])
+    async def previous_pattern(self, context: Context, *, pattern):
         """
-        Retrieves information about a given pattern. Use it without arguments to get a list of valid patterns.
+        sets the pattern for the current week. Use it without arguments to get a list of valid patterns.
 
         :param context:
         :param pattern:
@@ -270,13 +305,20 @@ class StalkIndex(commands.Cog):
             await context.send(msg)
             return
 
-        await context.send(stlk_predictions.get_pattern_info(pattern))
+        user_id = str(context.author.id)
+        week_delta = datetime.timedelta(days=7)
+        week_number = stlk_time.get_week_number(context.message.created_at.date() - week_delta)
+        year_number = stlk_time.get_year_number(context.message.created_at.date() - week_delta)
 
-    @pattern.error
-    async def pattern_error(self, context: Context, error):
+        stlk_turnip_logger.set_pattern(user_id, pattern, week_number, year_number)
+
+        await context.send(f"@**{context.author}**, your Stalk Market for last week has been recorded as following the **{pattern}** pattern.")
+
+    @previous_pattern.error
+    async def previous_pattern_error(self, context: Context, error):
         if isinstance(error, commands.MissingRequiredArgument):
             await context.message.add_reaction('❓')
-            msg = f"@**{context.author}**, please provide one of the following patterns to get more information:\n"
+            msg = f"@**{context.author}**, please provide one of the following patterns to set:\n"
             for valid_pattern in stlk_predictions.get_valid_patterns():
                 msg += f"\t**{valid_pattern}**"
             await context.send(msg)
@@ -284,6 +326,42 @@ class StalkIndex(commands.Cog):
         else:
             print(error)
 
+    @commands.command()
+    async def pattern(self, context: Context, *, pattern):
+        """
+        sets the pattern for the current week. Use it without arguments to get a list of valid patterns.
+
+        :param context:
+        :param pattern:
+        :return:
+        """
+        if pattern not in stlk_predictions.get_valid_patterns():
+            await context.message.add_reaction('❓')
+            msg = f"@**{context.author}**, I didn't recognize **{pattern}** as a market pattern, please try one of the following:\n"
+            for valid_pattern in stlk_predictions.get_valid_patterns():
+                msg += f"\t**{valid_pattern}**"
+            await context.send(msg)
+            return
+
+        user_id = str(context.author.id)
+        week_number = stlk_time.get_week_number(context.message.created_at.date())
+        year_number = stlk_time.get_year_number(context.message.created_at.date())
+
+        stlk_turnip_logger.set_pattern(user_id, pattern, week_number, year_number)
+
+        await context.send(f"@**{context.author}**, your Stalk Market for this week has been recorded as following the **{pattern}** pattern.")
+
+    @pattern.error
+    async def pattern_error(self, context: Context, error):
+        if isinstance(error, commands.MissingRequiredArgument):
+            await context.message.add_reaction('❓')
+            msg = f"@**{context.author}**, please provide one of the following patterns to set:\n"
+            for valid_pattern in stlk_predictions.get_valid_patterns():
+                msg += f"\t**{valid_pattern}**"
+            await context.send(msg)
+            return
+        else:
+            print(error)
 
     async def listened_channel_turnip_request(self, message: discord.Message):
         lines = message.content.split(' ')

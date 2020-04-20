@@ -6,10 +6,16 @@ from pytz import timezone
 
 
 def get_week_number(date: datetime.date):
+    if date.weekday() == 6:
+        # for sunday, we want to report for the next week
+        return (date.isocalendar()[1] + 1) % 53
     return date.isocalendar()[1]
 
 
 def get_year_number(date: datetime.date):
+    if date.weekday() == 6 and date.day == 31:
+        # it's new year's eve on a sunday, so report sunday prices for next year
+        return date.isocalendar()[0] + 1
     return date.isocalendar()[0]
 
 
@@ -34,13 +40,13 @@ def convert_datetime_to_server_datetime(date: datetime.datetime) -> datetime.dat
 
 class DayOfTheWeek(IntEnum):
 
-    MONDAY = 0,
-    TUESDAY = 1,
-    WEDNESDAY = 2,
-    THURSDAY = 3,
-    FRIDAY = 4,
-    SATURDAY = 5,
-    SUNDAY = 6
+    MONDAY = 1,
+    TUESDAY = 2,
+    WEDNESDAY = 3,
+    THURSDAY = 4,
+    FRIDAY = 5,
+    SATURDAY = 6,
+    SUNDAY = 0
 
     def __str__(self):
         return str(self.name)
@@ -55,7 +61,9 @@ class TimeOfDay(IntEnum):
 
 
 def get_day_of_the_week(date: datetime.datetime) -> DayOfTheWeek:
-    return DayOfTheWeek(date.weekday())
+
+    weekday = (date.weekday() + 1) % 7
+    return DayOfTheWeek(weekday)
 
 
 def get_time_of_day(date: datetime.datetime) -> TimeOfDay:
@@ -118,7 +126,7 @@ def get_day_of_the_week_human_friendly_name(day: DayOfTheWeek, abbreviate: bool 
 def get_day_of_the_week_enum_from_human_readable_name_or_none(name: str) -> typing.Optional[DayOfTheWeek]:
     name = name.lower().lstrip().rstrip()
 
-    for week_enum in [DayOfTheWeek.MONDAY, DayOfTheWeek.TUESDAY, DayOfTheWeek.WEDNESDAY, DayOfTheWeek.THURSDAY, DayOfTheWeek.FRIDAY, DayOfTheWeek.SATURDAY, DayOfTheWeek.SUNDAY]:
+    for week_enum in [DayOfTheWeek.SUNDAY, DayOfTheWeek.MONDAY, DayOfTheWeek.TUESDAY, DayOfTheWeek.WEDNESDAY, DayOfTheWeek.THURSDAY, DayOfTheWeek.FRIDAY, DayOfTheWeek.SATURDAY]:
         if name == get_day_of_the_week_human_friendly_name(week_enum):
             return week_enum
 

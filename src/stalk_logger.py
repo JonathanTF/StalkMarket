@@ -9,7 +9,7 @@ _LOGS_DIRECTORY = os.path.abspath('./DataStore/stalk_logs')
 _LOG_FOLDER_PREFIX = 'STLK_'
 _LOG_PREFIX = 'USR_'
 _LOG_EXT_TYPE = '.json'
-_DEFAULT_LOG = {}
+_DEFAULT_LOG = {"PATTERN": "unknown"}
 
 
 def verify_log(log_path: str):
@@ -72,6 +72,24 @@ def verify_user_data(user_data: typing.Dict):
                 time: str = str(time_of_day)
                 if time not in user_data[day]:
                     user_data[day][time] = 0
+    if "PATTERN" not in user_data:
+        user_data["PATTERN"] = "unknown"
+
+
+def set_pattern(user_id: str, pattern: str, week_number: int, year_number: int):
+    with open(get_verified_log_path(user_id, week_number, year_number), 'r') as file:
+        user_turnip_prices = json.load(file)
+    verify_user_data(user_turnip_prices)
+    user_turnip_prices["PATTERN"] = pattern
+    with open(get_verified_log_path(user_id, week_number, year_number), 'w+') as file:
+        json.dump(user_turnip_prices, file, indent=4)
+
+
+def get_pattern(user_id: str, week_number: int, year_number: int) -> int:
+    with open(get_verified_log_path(user_id, week_number, year_number), 'r') as file:
+        user_turnip_prices = json.load(file)
+    verify_user_data(user_turnip_prices)
+    return user_turnip_prices["PATTERN"]
 
 
 def set_turnip_price(user_id: str, price: int, day_of_the_week: DayOfTheWeek, time_of_day: TimeOfDay, week_number: int, year_number: int):

@@ -7,7 +7,28 @@ from turnips.model import ModelEnum
 #import src.stalk_time as stlk_time
 from stalk_time import DayOfTheWeek, TimeOfDay
 
+try:
+    import src.adapted_predicitions as prophet
+except ImportError:
+    import adapted_predictions as prophet
+
 _MIN_NUMBER_MODELS = 10
+
+PATTERN_STRING_TO_NUMBER = {
+    "fluctuating": 0,
+    "large spike": 1,
+    "decreasing": 2,
+    "small spike": 3,
+    "all": 4
+}
+
+PATTERN_NUMBER_TO_STRING = {
+    0: "fluctuating",
+    1: "large spike",
+    2: "decreasing",
+    3: "small spike",
+    4: "all"
+}
 
 
 def add_spaces(value: str) -> str:
@@ -27,7 +48,7 @@ def add_spaces(value: str) -> str:
 
 class PredictionResult:
     
-    def __init__(self, pattern = ""):#, monday_am = "", monday_pm = "", tuesday_am = "", tuesday_pm = "", wednesday_am = "", wednesday_pm = "", thursday_am = "", thursday_pm = "", friday_am = "", friday_pm = "", saturday_am = "", saturday_pm = ""):
+    def __init__(self, pattern):#, monday_am = "", monday_pm = "", tuesday_am = "", tuesday_pm = "", wednesday_am = "", wednesday_pm = "", thursday_am = "", thursday_pm = "", friday_am = "", friday_pm = "", saturday_am = "", saturday_pm = ""):
         self.pattern = pattern
 
         self.prices = {DayOfTheWeek.MONDAY: {TimeOfDay.AM: "", TimeOfDay.PM: ""},
@@ -54,10 +75,10 @@ class PredictionResult:
 
     def __str__(self):
         pattern = self.pattern
-        if len(pattern) > 10:
-            pattern = pattern[:10] + ' '
+        if len(pattern) > 11:
+            pattern = pattern[:11] + ' '
         else:
-            pattern = self.pattern + ' '*(11-len(pattern))
+            pattern = self.pattern + ' '*(12-len(pattern))
 
 
 
@@ -78,7 +99,7 @@ class PredictionResult:
         """
 
 def predictions_list_generator(predictions: typing.List[PredictionResult]):
-    yield f"`Pattern    |{add_spaces('Mon-AM')}{add_spaces('Mon-PM')}{add_spaces('Tues-AM')}{add_spaces('Tues-PM')}{add_spaces('Wed-AM')}{add_spaces('Wed-PM')}{add_spaces('Thurs-AM')}{add_spaces('Thurs-PM')}{add_spaces('Fri-AM')}{add_spaces('Fri-PM')}{add_spaces('Sat-AM')}{add_spaces('Sat-PM')}`\n"
+    yield f"`Pattern     |{add_spaces('Mon-AM')}{add_spaces('Mon-PM')}{add_spaces('Tues-AM')}{add_spaces('Tues-PM')}{add_spaces('Wed-AM')}{add_spaces('Wed-PM')}{add_spaces('Thurs-AM')}{add_spaces('Thurs-PM')}{add_spaces('Fri-AM')}{add_spaces('Fri-PM')}{add_spaces('Sat-AM')}{add_spaces('Sat-PM')}`\n"
     for prediction in predictions:
         yield f"`{str(prediction)}`\n"
 
@@ -86,50 +107,18 @@ def predictions_list_generator(predictions: typing.List[PredictionResult]):
 
 
 def get_valid_patterns() -> typing.List[str]:
-    return ['bump', 'decay', 'spike', 'triple', 'unknown']
-
-
-def get_short_prediction_string(predictions: typing.List[PredictionResult]) -> str:
-
-    if len(predictions) <= 0:
-        return "it looks like your Stalk Market is experiencing a Random Market! ...sorry!"
-
-    pattern_dict = {'bump': 0,
-                    'decay': 0,
-                    'spike': 0,
-                    'triple': 0,
-                    'unknown': 0}
-
-    for prediction in predictions:
-        pattern_dict[prediction.pattern] += 1
-
-    # check for number of winners
-    valid_patterns = []
-    for key in pattern_dict.keys():
-        #if key == 'unknown':
-        #    continue
-        if pattern_dict[key] > 0:
-            valid_patterns.append(key)
-
-    if len(valid_patterns) == 0:
-        return "your Stalk Market doesn't match any known pattern! ...sorry!"
-    elif len(valid_patterns) == 1:
-        return f"your Stalk Market will very likely follow the **{valid_patterns[0]}** pattern!\n" + get_pattern_info(valid_patterns[0])
-    elif len(valid_patterns) == 2:
-        return f"your Stalk Market could follow either the **{valid_patterns[0]}** pattern or the **{valid_patterns[1]}** pattern."
-    elif len(valid_patterns) >= 3:
-        return f"your Stalk Market could follow pretty much any pattern! ...sorry!"
+    return ['large spike', 'small spike', 'decreasing', 'fluctuating', 'unknown']
 
 
 def get_pattern_info(pattern: str) -> str:
 
-    if pattern == 'bump':
+    if pattern == 'small spike':
         return "A bump market, or small spike, is identified by a period of decreasing prices, followed by a period of increasing prices, finally followed by another period of decreasing prices. Prices will increase 5 times, after which they will only go down."
-    elif pattern == 'decay':
+    elif pattern == 'decreasing':
         return "A decay market, or decreasing, is identified by decreasing prices every single day. It is recommended to either find another Stalk Market or sell your Turnips at a loss."
-    elif pattern == 'spike':
+    elif pattern == 'large spike':
         return "A spike market, or large spike, is identified by a period of decreasing prices, followed by a sharp increase in prices. Prices will increase 3 times, where the third increase will yield the highest prices, between 2x to 6x of Daisy's prices. This is the best market to be in, please notify your friends if your market matches this pattern!"
-    elif pattern == 'triple':
+    elif pattern == 'fluctuating':
         return "A triple market, or triple peak, is identified by two phases of increasing then decreasing prices, finished with a final phase of increasing prices. It is possible to turn a profit on any of the 3 peaks, but they are generally not as reliable as other markets."
     elif pattern == 'unknown':
         return "An unknown market is a market that is either completely random, or is a new market the Nooks have introduced to keep the Stalk Index on its toes. If there is a definite pattern to your Market but it isn't classified, you may have discovered a new market pattern."
@@ -137,68 +126,89 @@ def get_pattern_info(pattern: str) -> str:
         return f"The Stalk Index doesn't have any information on the {pattern} market pattern."
 
 
-async def predict(stalk_data: typing.Dict) -> (int, typing.List[PredictionResult]):
+async def predict(stalk_data: typing.Dict, previous_week: str) -> (typing.Dict[str, float], typing.List[PredictionResult]):
 
-    day_strings = [str(x) for x in [DayOfTheWeek.MONDAY, DayOfTheWeek.TUESDAY, DayOfTheWeek.WEDNESDAY, DayOfTheWeek.THURSDAY, DayOfTheWeek.FRIDAY, DayOfTheWeek.SATURDAY]]
-    turnips_day_strings = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    time_strings = [str(x) for x in [TimeOfDay.AM, TimeOfDay.PM]]
+    previous_week_number = None
+    try:
+        previous_week_number = PATTERN_STRING_TO_NUMBER[previous_week]
+    except KeyError:
+        pass
 
-    turnips_model = MetaModel.blank()
+    #prices = [97, 97, 84, 81, 77, 73, 69, 66, None, None, None, None, None, None]
 
-    day_index = 0
-    while day_index < 6:
+    prices = [None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+    # convert dictionary to list of prices
+    if stalk_data['SUNDAY']['AM'] > 0:
+        prices[0] = stalk_data['SUNDAY']['AM']
+        prices[1] = stalk_data['SUNDAY']['AM']
+    if stalk_data['MONDAY']['AM'] > 0:
+        prices[2] = stalk_data['MONDAY']['AM']
+    if stalk_data['MONDAY']['PM'] > 0:
+        prices[3] = stalk_data['MONDAY']['PM']
+    if stalk_data['TUESDAY']['AM'] > 0:
+        prices[4] = stalk_data['TUESDAY']['AM']
+    if stalk_data['TUESDAY']['PM'] > 0:
+        prices[5] = stalk_data['TUESDAY']['PM']
+    if stalk_data['WEDNESDAY']['AM'] > 0:
+        prices[6] = stalk_data['WEDNESDAY']['AM']
+    if stalk_data['WEDNESDAY']['PM'] > 0:
+        prices[7] = stalk_data['WEDNESDAY']['PM']
+    if stalk_data['THURSDAY']['AM'] > 0:
+        prices[8] = stalk_data['THURSDAY']['AM']
+    if stalk_data['THURSDAY']['PM'] > 0:
+        prices[9] = stalk_data['THURSDAY']['PM']
+    if stalk_data['FRIDAY']['AM'] > 0:
+        prices[10] = stalk_data['FRIDAY']['AM']
+    if stalk_data['FRIDAY']['PM'] > 0:
+        prices[11] = stalk_data['FRIDAY']['PM']
+    if stalk_data['SATURDAY']['AM'] > 0:
+        prices[12] = stalk_data['SATURDAY']['AM']
+    if stalk_data['SATURDAY']['PM'] > 0:
+        prices[13] = stalk_data['SATURDAY']['PM']
 
-        for time_of_day in time_strings:
-            user_price = stalk_data[day_strings[day_index]][time_of_day]
-            if user_price != 0:
-                turnip_string = f"{turnips_day_strings[day_index]}_{time_of_day}"
-                turnips_model.fix_price(turnip_string, user_price)
+    first_buy = False
+    prophet_results = prophet.analyze_possibilities(prices, first_buy, previous_week_number)
 
-        day_index += 1
+    probabilities = []
+    probabilities = {'fluctuating': 0.0,
+                     'large spike': 0.0,
+                     'small spike': 0.0,
+                     'decreasing': 0.0}
+    remaining_patterns = [PATTERN_NUMBER_TO_STRING[x] for x in [0, 1, 2, 3]]
 
-    #num_models = len(turnips_model)
-    #if len(turnips_model) > _MIN_NUMBER_MODELS:
-    #    return num_models, None
-        #return f"your currently fits {len(turnips_model)} different models. Please provide more data to narrow the search."
-
-    #report = f'your turnip data fits {num_models} models:\n'
-    #report += "`Pattern\tM-am\tM-pm\tTu-am\tTu-pm\tW-am\tW-pm\tTh-am\tTh-pm\tF-am\tF-pm\tSa-am\tSa-pm\tDetails`\n"
+    for result in prophet_results:
+        pattern = PATTERN_NUMBER_TO_STRING[result.pattern_number]
+        if pattern in probabilities:
+            probabilities[pattern] += result.probability
+    for pattern in probabilities.keys():
+        probabilities[pattern] = round(probabilities[pattern] * 100, 2)
 
     prediction_results = []
-    for model in turnips_model.models:
-        prediction_result = PredictionResult()
-        prediction_result.pattern = str(model.model_name)
 
-        #for time in [TimePeriod.Monday_AM, TimePeriod.Monday_PM, TimePeriod.Tuesday_AM, TimePeriod.Tuesday_PM,
-        #             TimePeriod.Wednesday_AM, TimePeriod.Wednesday_PM, TimePeriod.Thursday_AM, TimePeriod.Thursday_PM,
-        #             TimePeriod.Friday_AM, TimePeriod.Friday_PM, TimePeriod.Saturday_AM, TimePeriod.Saturday_PM]:
-            
-        prediction_result.prices[DayOfTheWeek.MONDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Monday_AM].price)
-        prediction_result.prices[DayOfTheWeek.MONDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Monday_PM].price)
-        prediction_result.prices[DayOfTheWeek.TUESDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Tuesday_AM].price)
-        prediction_result.prices[DayOfTheWeek.TUESDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Tuesday_PM].price)
-        prediction_result.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Wednesday_AM].price)
-        prediction_result.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Wednesday_PM].price)
-        prediction_result.prices[DayOfTheWeek.THURSDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Thursday_AM].price)
-        prediction_result.prices[DayOfTheWeek.THURSDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Thursday_PM].price)
-        prediction_result.prices[DayOfTheWeek.FRIDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Friday_AM].price)
-        prediction_result.prices[DayOfTheWeek.FRIDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Friday_PM].price)
-        prediction_result.prices[DayOfTheWeek.SATURDAY][TimeOfDay.AM] = str(model.timeline[TimePeriod.Saturday_AM].price)
-        prediction_result.prices[DayOfTheWeek.SATURDAY][TimeOfDay.PM] = str(model.timeline[TimePeriod.Saturday_PM].price)
+    for result in prophet_results:
+        if result.pattern_number > 3:
+            continue
+
+        prediction_result = PredictionResult(result.pattern_description)
+
+        prices = result.prices
+
+        prediction_result.prices[DayOfTheWeek.MONDAY][TimeOfDay.AM] = str(prices[2])
+        prediction_result.prices[DayOfTheWeek.MONDAY][TimeOfDay.PM] = str(prices[3])
+        prediction_result.prices[DayOfTheWeek.TUESDAY][TimeOfDay.AM] = str(prices[4])
+        prediction_result.prices[DayOfTheWeek.TUESDAY][TimeOfDay.PM] = str(prices[5])
+        prediction_result.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.AM] = str(prices[6])
+        prediction_result.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.PM] = str(prices[7])
+        prediction_result.prices[DayOfTheWeek.THURSDAY][TimeOfDay.AM] = str(prices[8])
+        prediction_result.prices[DayOfTheWeek.THURSDAY][TimeOfDay.PM] = str(prices[9])
+        prediction_result.prices[DayOfTheWeek.FRIDAY][TimeOfDay.AM] = str(prices[10])
+        prediction_result.prices[DayOfTheWeek.FRIDAY][TimeOfDay.PM] = str(prices[11])
+        prediction_result.prices[DayOfTheWeek.SATURDAY][TimeOfDay.AM] = str(prices[12])
+        prediction_result.prices[DayOfTheWeek.SATURDAY][TimeOfDay.PM] = str(prices[13])
 
         prediction_results.append(prediction_result)
 
-    return prediction_results
-
-    #print(f"Number of models available: {len(turnips_model)}\n\n")
-
-
-    #print(turnips_model.report(show_summary=True))
-    #print(turnips_model.summary())
-
-
-
-
+    return probabilities, prediction_results
 
 
 

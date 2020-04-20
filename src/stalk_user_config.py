@@ -10,6 +10,7 @@ _LOGS_DIRECTORY = os.path.abspath('./DataStore/user_config')
 _LOG_PREFIX = 'USR_'
 _LOG_EXT_TYPE = '.json'
 _DEFAULT_LOG = {"timezone": "US/Central"}
+                #"previous week": "unknown"}
 
 
 def verify_log(log_path: str):
@@ -45,7 +46,25 @@ def get_verified_log_path(user_id) -> str:
 def verify_user_data(user_id: str, user_data: typing.Dict):
     if "timezone" not in user_data:
         user_data["timezone"] = "US/Central"
+    #if "previous week" not in user_data:
+    #    user_data["previous week"] = "unknown"
 
+"""
+def get_user_previous_week(user_id: str) -> str:
+    with open(get_verified_log_path(user_id), 'r') as file:
+        user_config = json.load(file)
+    verify_user_data(user_id, user_config)
+    return user_config['previous week']
+
+
+def set_user_previous_week(user_id: str, previous_week: str):
+    with open(get_verified_log_path(user_id), 'r') as file:
+        user_config = json.load(file)
+    verify_user_data(user_id, user_config)
+    user_config['previous week'] = previous_week
+    with open(get_verified_log_path(user_id), 'w+') as file:
+        json.dump(user_config, file, indent=4)
+"""
 
 def get_user_timezone(user_id: str) -> str:
     with open(get_verified_log_path(user_id), 'r') as file:
