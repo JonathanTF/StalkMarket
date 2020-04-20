@@ -215,7 +215,7 @@ class StalkIndex(commands.Cog):
         #prediction_str = stlk_predictions.get_short_prediction_string(predictions)
 
         if len(predictions) > 10:
-            prediction_str += "Your Stalk Index is currently matching {len(predictions)} models - please provide more data to narrow down the search!"
+            prediction_str += f"Your Stalk Index is currently matching {len(predictions)} models - please provide more data to narrow down the search!"
             await context.send(prediction_str)
             return
             #await context.send(f"@**{context.author}**, {prediction_str}\nYour Stalk Index is currently matching {len(predictions)} models - please provide more data to narrow down the search!")
