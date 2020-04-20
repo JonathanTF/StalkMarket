@@ -6,11 +6,11 @@ from turnips.ttime import TimePeriod
 from turnips.model import ModelEnum
 #import src.stalk_time as stlk_time
 from stalk_time import DayOfTheWeek, TimeOfDay
+from adapted_predictions import analyze_possibilities
+#try:
+#    from src.adapted_predicitions import analyze_possibilities
+#except ModuleNotFoundError:
 
-try:
-    import src.adapted_predicitions as prophet
-except ImportError:
-    import adapted_predictions as prophet
 
 _MIN_NUMBER_MODELS = 10
 
@@ -167,7 +167,7 @@ async def predict(stalk_data: typing.Dict, previous_week: str) -> (typing.Dict[s
         prices[13] = stalk_data['SATURDAY']['PM']
 
     first_buy = False
-    prophet_results = prophet.analyze_possibilities(prices, first_buy, previous_week_number)
+    prophet_results = analyze_possibilities(prices, first_buy, previous_week_number)
 
     probabilities = []
     probabilities = {'fluctuating': 0.0,
