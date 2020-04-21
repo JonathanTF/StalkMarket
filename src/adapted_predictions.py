@@ -437,12 +437,12 @@ def generate_peak_price(given_prices: typing.List, predicted_prices, start, rate
         rate2_range = rate_range_from_given_and_base(clamp(price, min_pred, max_pred)+ 1, buy_price)
 
         def F(t, ZZ):
-                if (t <= 0):
-                        return 0
-                if ZZ < t:
-                        return ZZ
-                else:
-                        return t - t * (np.log(t), np.log(ZZ))
+            if t <= 0:
+                return 0
+            if ZZ < t:
+                return ZZ
+            else:
+                return t - t * (np.log(t) - np.log(ZZ))
         """
         F = (t, ZZ) => {
             if (t <= 0) {
@@ -452,8 +452,8 @@ def generate_peak_price(given_prices: typing.List, predicted_prices, start, rate
         };
         """
 
-        A = rate_range
-        B = rate_range
+        A = rate_range[0]
+        B = rate_range[1]
         C = rate_min
         Z1 = A - C
         Z2 = B - C
