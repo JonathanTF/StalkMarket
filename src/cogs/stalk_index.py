@@ -389,13 +389,8 @@ class StalkIndex(commands.Cog):
             return
 
         user_id = str(message.author.id)
-        user_timezone = stlk_time.convert_timezone_str_to_tzinfo(stlk_user_config.get_user_timezone(user_id))
-        adjusted_time = stlk_time.get_adjusted_time(message.created_at, user_timezone)
-
-        week_number = stlk_time.get_week_number(adjusted_time)
-        year_number = stlk_time.get_year_number(adjusted_time)
-        day_of_the_week = stlk_time.get_day_of_the_week(adjusted_time)
-        time_of_day = stlk_time.get_time_of_day(adjusted_time)
+        user_tz_str = stlk_user_config.get_user_timezone(user_id)
+        year_number, week_number, day_of_the_week, time_of_day = stlk_time.get_local_time_variables(user_tz_str)
 
         previous_value = stlk_turnip_logger.get_turnip_price(user_id, day_of_the_week, time_of_day, week_number, year_number)
 

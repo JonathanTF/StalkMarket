@@ -5,6 +5,7 @@ import pytz
 from pytz import timezone
 
 
+
 def get_week_number(date: datetime.date):
     if date.weekday() == 6:
         # for sunday, we want to report for the next week
@@ -25,13 +26,24 @@ def get_is_valid_timezone(tz: str) -> bool:
     except pytz.exceptions.UnknownTimeZoneError:
         return False
 
+def get_time_of_day(date: datetime.datetime):
+    local_tz = pytz.timezone(timezone_str)
+    local_time = datetime.datetime.now(local_tz)
+    hour = date.hour
+
+    if hour >= 12:
+        return TimeOfDay.PM
+    else:
+        return TimeOfDay.AM
+
+
 
 def convert_timezone_str_to_tzinfo(timezone_str: str) -> datetime.tzinfo:
     return pytz.timezone(timezone_str)
 
 
-def get_adjusted_time(date: datetime.datetime, tz: datetime.tzinfo) -> datetime.datetime:
-    return date.astimezone(tz)
+#def get_adjusted_time(date: datetime.datetime, tz: datetime.tzinfo) -> datetime.datetime:
+#    return date.astimezone(tz)
 
 
 def convert_datetime_to_server_datetime(date: datetime.datetime) -> datetime.datetime:
@@ -60,19 +72,46 @@ class TimeOfDay(IntEnum):
         return str(self.name)
 
 
+def get_local_time_variables(timezone_str: str) -> (int, int, DayOfTheWeek, TimeOfDay):
+    local_tz = pytz.timezone(timezone_str)
+    local_time = datetime.datetime.now(local_tz)
+    year = local_time.year
+    weekday = (local_time.weekday() + 1) % 7
+    day_of_the_week = DayOfTheWeek(weekday)
+
+    if local_time.weekday() == 6:
+        # for sunday, we want to report for the next week
+        week = (local_time.isocalendar()[1] + 1) % 53
+        if local_time.day == 31:
+            year += 1  # it's new year's eve on a sunday, so report sunday prices for next year
+    else:
+        week = local_time.isocalendar()[1]
+
+    print(f"Retrieved local time: {local_time.strftime('%Y-%m-%d, %H:%M:%S')}")
+
+    if local_time.hour < 12:
+        time_of_day = TimeOfDay.AM
+        print("Morning!")
+    else:
+        time_of_day = TimeOfDay.PM
+        print("Evening!")
+
+    return year, week, day_of_the_week, time_of_day
+
+
 def get_day_of_the_week(date: datetime.datetime) -> DayOfTheWeek:
 
     weekday = (date.weekday() + 1) % 7
     return DayOfTheWeek(weekday)
 
-
+"""
 def get_time_of_day(date: datetime.datetime) -> TimeOfDay:
     hour = date.hour + (date.utcoffset().total_seconds() / 3600)
     if hour >= 12:
         return TimeOfDay.PM
     else:
         return TimeOfDay.AM
-
+"""
 
 def get_time_of_day_human_readable_name(time: TimeOfDay) -> str:
     if time == TimeOfDay.AM:

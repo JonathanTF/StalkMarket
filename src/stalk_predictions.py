@@ -1,10 +1,5 @@
 import typing
 
-import turnips
-from turnips.meta import MetaModel
-from turnips.ttime import TimePeriod
-from turnips.model import ModelEnum
-#import src.stalk_time as stlk_time
 from stalk_time import DayOfTheWeek, TimeOfDay
 from adapted_predictions import analyze_possibilities
 #try:
@@ -80,8 +75,6 @@ class PredictionResult:
         else:
             pattern = self.pattern + ' '*(12-len(pattern))
 
-
-
         return f"{pattern}|{add_spaces(self.prices[DayOfTheWeek.MONDAY][TimeOfDay.AM])}{add_spaces(self.prices[DayOfTheWeek.MONDAY][TimeOfDay.PM])}" \
                f"{add_spaces(self.prices[DayOfTheWeek.TUESDAY][TimeOfDay.AM])}{add_spaces(self.prices[DayOfTheWeek.TUESDAY][TimeOfDay.PM])}" \
                f"{add_spaces(self.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.AM])}{add_spaces(self.prices[DayOfTheWeek.WEDNESDAY][TimeOfDay.PM])}" \
@@ -97,6 +90,7 @@ class PredictionResult:
                f"{self.prices[DayOfTheWeek.FRIDAY][TimeOfDay.AM]}\t{self.prices[DayOfTheWeek.FRIDAY][TimeOfDay.PM]}\t" \
                f"{self.prices[DayOfTheWeek.SATURDAY][TimeOfDay.AM]}\t{self.prices[DayOfTheWeek.SATURDAY][TimeOfDay.PM]}"
         """
+
 
 def predictions_list_generator(predictions: typing.List[PredictionResult]):
     yield f"`Pattern     |{add_spaces('Mon-AM')}{add_spaces('Mon-PM')}{add_spaces('Tues-AM')}{add_spaces('Tues-PM')}{add_spaces('Wed-AM')}{add_spaces('Wed-PM')}{add_spaces('Thurs-AM')}{add_spaces('Thurs-PM')}{add_spaces('Fri-AM')}{add_spaces('Fri-PM')}{add_spaces('Sat-AM')}{add_spaces('Sat-PM')}`\n"
